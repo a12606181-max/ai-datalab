@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: ai-datalab
+    runtime: node
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npm run deploy:start
+    initialDeployHook: npm run db:seed
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: file:/var/data/ai-datalab.db
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.2
+    disk:
+      name: ai-datalab-data
+      mountPath: /var/data

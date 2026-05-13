@@ -1,26 +1,134 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #090711;
+  --background-elevated: #11101a;
+  --background-soft: #15121f;
+  --foreground: #ffffff;
+  --muted: #a39daf;
+  --muted-strong: #8f8a9c;
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #f238ff;
+  --accent-alt: #8b5cf6;
+  --success: #6dffb5;
+  --danger: #ff6ba9;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-background-elevated: var(--background-elevated);
+  --color-background-soft: var(--background-soft);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-alt: var(--accent-alt);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(242, 56, 255, 0.32), transparent 28%),
+    radial-gradient(circle at 85% 12%, rgba(139, 92, 246, 0.2), transparent 24%),
+    linear-gradient(180deg, #0b0813 0%, #090711 54%, #06040d 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(242, 56, 255, 0.4);
+  color: white;
+}
+
+.glass-card {
+  background: linear-gradient(180deg, rgba(21, 18, 31, 0.88), rgba(12, 10, 21, 0.9));
+  border: 1px solid var(--border);
+  box-shadow:
+    0 20px 80px rgba(6, 4, 13, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+}
+
+.panel-glow {
+  position: relative;
+}
+
+.panel-glow::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(242, 56, 255, 0.55),
+    rgba(139, 92, 246, 0.18),
+    rgba(255, 255, 255, 0.02)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+
+.hover-lift {
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  border-color: rgba(242, 56, 255, 0.35);
+  box-shadow:
+    0 24px 70px rgba(5, 3, 12, 0.65),
+    0 0 0 1px rgba(242, 56, 255, 0.14);
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
 }
