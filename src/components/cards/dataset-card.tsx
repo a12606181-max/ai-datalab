@@ -2,9 +2,11 @@ import Link from "next/link";
 import { Download, Tags } from "lucide-react";
 
 import { GlassCard } from "@/components/ui/glass-card";
+import { AppLocale } from "@/lib/locale";
 
 export function DatasetCard({
   dataset,
+  locale = "ru",
 }: {
   dataset: {
     id: string;
@@ -19,33 +21,40 @@ export function DatasetCard({
     secondaryHref?: string;
     secondaryLabel?: string;
   };
+  locale?: AppLocale;
 }) {
+  const tags = dataset.tags.length ? dataset.tags : locale === "en" ? ["Training dataset"] : ["Учебный датасет"];
+  const formatLabel = /excel|xlsx/i.test(dataset.downloadLabel)
+    ? "XLSX"
+    : dataset.filename.split(".").pop()?.toUpperCase() ?? "FILE";
+  const rowsLabel = locale === "en" ? "rows" : "строк";
+
   return (
     <GlassCard className="hover-lift space-y-4">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-semibold text-white">{dataset.title}</h3>
-          <p className="mt-2 text-sm leading-6 text-white/55">{dataset.description}</p>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-lg font-semibold text-white [overflow-wrap:anywhere]">{dataset.title}</h3>
+          <p className="mt-2 text-sm leading-6 text-white/55 [overflow-wrap:anywhere]">{dataset.description}</p>
         </div>
-        <span className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
+        <span className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70">
           {dataset.size}
         </span>
       </div>
       <div className="flex flex-wrap gap-2">
-        {dataset.tags.map((tag) => (
+        {tags.map((tag) => (
           <span
             key={tag}
             className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/55"
           >
-            {tag}
+            <span className="[overflow-wrap:anywhere]">{tag}</span>
           </span>
         ))}
       </div>
       <div className="flex items-center justify-between gap-3 text-sm text-white/50">
-        <span>{dataset.rowsCount} строк</span>
+        <span>{dataset.rowsCount} {rowsLabel}</span>
         <div className="flex items-center gap-2">
           <Tags className="h-4 w-4 text-fuchsia-300" />
-          Excel
+          {formatLabel}
         </div>
       </div>
       <div className="flex flex-wrap gap-3">

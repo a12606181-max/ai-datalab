@@ -1,19 +1,43 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { ActionState } from "@/lib/action-state";
 import { requireUser } from "@/lib/auth";
+import { getLabCaseGuide } from "@/lib/lab-case-guides";
+import { resolveCourseSkill, resolveLabSkillBoosts } from "@/lib/learning-analytics";
 import { prisma } from "@/lib/prisma";
 import { scoreLabSubmission } from "@/lib/scoring";
 import { labSubmissionSchema, lessonCompletionSchema } from "@/lib/validations";
 
-function getCourseSkill(courseTitle: string) {
-  if (courseTitle.includes("Python")) return "Python";
-  if (courseTitle.includes("машин")) return "Machine Learning";
-  if (courseTitle.includes("Визуал")) return "Visualization";
-  if (courseTitle.includes("Искусственный интеллект")) return "AI Basics";
-  return "Data Analysis";
+async function incrementSkillProgress(
+  db: Prisma.TransactionClient | typeof prisma,
+  userId: string,
+  skill: string,
+  delta: number,
+) {
+  const current = await db.skillProgress.findFirst({
+    where: { userId, skill },
+  });
+
+  if (current) {
+    await db.skillProgress.update({
+      where: { id: current.id },
+      data: {
+        value: Math.min(100, current.value + delta),
+      },
+    });
+    return;
+  }
+
+  await db.skillProgress.create({
+    data: {
+      userId,
+      skill,
+      value: Math.min(100, Math.max(delta, 1)),
+    },
+  });
 }
 
 export async function completeLessonAction(
@@ -72,77 +96,74 @@ export async function completeLessonAction(
     const correctCount = results.filter((item) => item.correct).length;
     const scorePercent = Math.round((correctCount / results.length) * 100);
 
-    await prisma.progress.upsert({
-      where: { id: `${user.id}-${lesson.id}-lesson` },
-      update: {
-        value: scorePercent,
-        completed: true,
-      },
-      create: {
-        id: `${user.id}-${lesson.id}-lesson`,
-        userId: user.id,
-        courseId: lesson.courseId,
-        lessonId: lesson.id,
-        type: "LESSON",
-        value: scorePercent,
-        completed: true,
-      },
-    });
-
-    const [completedLessons, totalLessons, existingCourseProgress] = await Promise.all([
-      prisma.progress.count({
-        where: {
-          userId: user.id,
-          courseId: lesson.courseId,
-          type: "LESSON",
+    await prisma.$transaction(async (tx) => {
+      await tx.progress.upsert({
+        where: { id: `${user.id}-${lesson.id}-lesson` },
+        update: {
+          value: scorePercent,
           completed: true,
         },
-      }),
-      prisma.lesson.count({
-        where: { courseId: lesson.courseId },
-      }),
-      prisma.progress.findFirst({
-        where: {
+        create: {
+          id: `${user.id}-${lesson.id}-lesson`,
           userId: user.id,
           courseId: lesson.courseId,
-          type: "COURSE",
-        },
-      }),
-    ]);
-
-    const progressValue = Math.round((completedLessons / Math.max(totalLessons, 1)) * 100);
-
-    if (existingCourseProgress) {
-      await prisma.progress.update({
-        where: { id: existingCourseProgress.id },
-        data: {
-          value: progressValue,
-          completed: progressValue === 100,
+          lessonId: lesson.id,
+          type: "LESSON",
+          value: scorePercent,
+          completed: true,
         },
       });
-    } else {
-      await prisma.progress.create({
-        data: {
-          userId: user.id,
-          courseId: lesson.courseId,
-          type: "COURSE",
-          value: progressValue,
-          completed: progressValue === 100,
-        },
-      });
-    }
 
-    const courseSkill = getCourseSkill(lesson.course.title);
-    const currentSkill = await prisma.skillProgress.findFirst({
-      where: { userId: user.id, skill: courseSkill },
+      const [completedLessons, totalLessons, existingCourseProgress] = await Promise.all([
+        tx.progress.count({
+          where: {
+            userId: user.id,
+            courseId: lesson.courseId,
+            type: "LESSON",
+            completed: true,
+          },
+        }),
+        tx.lesson.count({
+          where: { courseId: lesson.courseId },
+        }),
+        tx.progress.findFirst({
+          where: {
+            userId: user.id,
+            courseId: lesson.courseId,
+            type: "COURSE",
+          },
+        }),
+      ]);
+
+      const progressValue = Math.round((completedLessons / Math.max(totalLessons, 1)) * 100);
+
+      if (existingCourseProgress) {
+        await tx.progress.update({
+          where: { id: existingCourseProgress.id },
+          data: {
+            value: progressValue,
+            completed: progressValue === 100,
+          },
+        });
+      } else {
+        await tx.progress.create({
+          data: {
+            userId: user.id,
+            courseId: lesson.courseId,
+            type: "COURSE",
+            value: progressValue,
+            completed: progressValue === 100,
+          },
+        });
+      }
+
+      await incrementSkillProgress(
+        tx,
+        user.id,
+        resolveCourseSkill(lesson.course.title),
+        Math.max(3, Math.round(scorePercent / 12)),
+      );
     });
-
-    if (currentSkill) {
-      await prisma.skillProgress.update({
-        where: { id: currentSkill.id },
-        data: { value: Math.min(100, currentSkill.value + Math.max(3, Math.round(scorePercent / 12))) },
-      });
-    }
 
     revalidatePath("/dashboard");
     revalidatePath("/courses");
@@ -150,6 +171,20 @@ export async function completeLessonAction(
     revalidatePath(`/lessons/${lesson.id}`);
     revalidatePath("/progress");
     revalidatePath("/profile");
+
+    const nextLesson = await prisma.lesson.findFirst({
+      where: {
+        courseId: lesson.courseId,
+        order: {
+          gt: lesson.order,
+        },
+      },
+      orderBy: { order: "asc" },
+      select: {
+        id: true,
+        title: true,
+      },
+    });
 
     return {
       success: true,
@@ -162,6 +197,10 @@ export async function completeLessonAction(
         correctCount,
         totalQuestions: results.length,
         results,
+        courseHref: `/courses/${lesson.courseId}`,
+        courseTitle: lesson.course.title,
+        nextLessonHref: nextLesson ? `/lessons/${nextLesson.id}` : null,
+        nextLessonTitle: nextLesson?.title ?? null,
       },
     };
   } catch {
@@ -181,14 +220,6 @@ export async function submitLabAction(
     const uploadedFile = formData.get("file");
     const uploadedFileName =
       uploadedFile instanceof File && uploadedFile.size > 0 ? uploadedFile.name : undefined;
-
-    if (uploadedFileName && !uploadedFileName.toLowerCase().endsWith(".csv")) {
-      return {
-        success: false,
-        message: "Файл должен быть в формате .csv.",
-        fieldErrors: { uploadedFileName: ["Допустимы только файлы CSV."] },
-      };
-    }
 
     const parsed = labSubmissionSchema.safeParse({
       labId: formData.get("labId"),
@@ -213,69 +244,74 @@ export async function submitLabAction(
       return { success: false, message: "Лабораторная не найдена." };
     }
 
-    const result = scoreLabSubmission(parsed.data.answerText);
+    const expectedFormat = (lab.requiredFormat || ".csv").toLowerCase();
+    if (uploadedFileName && !uploadedFileName.toLowerCase().endsWith(expectedFormat)) {
+      return {
+        success: false,
+        message: `Файл должен быть в формате ${expectedFormat}.`,
+        fieldErrors: { uploadedFileName: [`Допустимы только файлы ${expectedFormat}.`] },
+      };
+    }
 
-    await prisma.submission.create({
-      data: {
-        userId: user.id,
-        labId: lab.id,
-        answerText: parsed.data.answerText,
-        uploadedFileName,
-        score: result.score,
-        status: "CHECKED",
-        feedback: result.feedback,
-      },
-    });
-
-    const existingProgress = await prisma.progress.findFirst({
-      where: { userId: user.id, labId: lab.id, type: "LAB" },
-    });
-
-    if (existingProgress) {
-      await prisma.progress.update({
-        where: { id: existingProgress.id },
-        data: {
-          value: result.score,
-          completed: true,
+    if (parsed.data.answerText.trim().length < lab.minAnswerLength) {
+      return {
+        success: false,
+        message: "Ответ пока слишком короткий для проверки.",
+        fieldErrors: {
+          answerText: [`Минимальная длина ответа для этого кейса — ${lab.minAnswerLength} символов.`],
         },
-      });
-    } else {
-      await prisma.progress.create({
+      };
+    }
+
+    const caseGuide = getLabCaseGuide(lab.title);
+    const result = scoreLabSubmission(parsed.data.answerText, caseGuide.focusTerms);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.submission.create({
         data: {
           userId: user.id,
           labId: lab.id,
-          type: "LAB",
-          value: result.score,
-          completed: true,
+          answerText: parsed.data.answerText,
+          uploadedFileName,
+          score: result.score,
+          status: "CHECKED",
+          feedback: result.feedback,
         },
       });
-    }
 
-    const skillBoosts = [
-      { skill: "Data Analysis", value: 6 },
-      { skill: lab.title.includes("график") ? "Visualization" : "Python", value: 7 },
-      {
-        skill: lab.title.includes("ML") || lab.title.includes("Прогноз")
-          ? "Machine Learning"
-          : "AI Basics",
-        value: 5,
-      },
-    ];
-
-    for (const boost of skillBoosts) {
-      const current = await prisma.skillProgress.findFirst({
-        where: { userId: user.id, skill: boost.skill },
+      const existingProgress = await tx.progress.findFirst({
+        where: { userId: user.id, labId: lab.id, type: "LAB" },
       });
 
-      if (current) {
-        await prisma.skillProgress.update({
-          where: { id: current.id },
+      if (existingProgress) {
+        await tx.progress.update({
+          where: { id: existingProgress.id },
           data: {
-            value: Math.min(100, current.value + Math.round((result.score / 100) * boost.value)),
+            value: result.score,
+            completed: true,
+          },
+        });
+      } else {
+        await tx.progress.create({
+          data: {
+            userId: user.id,
+            labId: lab.id,
+            type: "LAB",
+            value: result.score,
+            completed: true,
           },
         });
       }
-    }
+
+      for (const boost of resolveLabSkillBoosts(lab.title)) {
+        await incrementSkillProgress(
+          tx,
+          user.id,
+          boost.skill,
+          Math.max(1, Math.round((result.score / 100) * boost.value)),
+        );
+      }
+    });
 
     revalidatePath("/dashboard");
     revalidatePath("/labs");

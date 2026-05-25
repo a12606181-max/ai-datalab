@@ -1,11 +1,22 @@
-import { UserRole } from "@prisma/client";
+import { UserRole, UserStatus } from "@prisma/client";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import * as XLSX from "xlsx";
 
+import { resolveDatasetFilePath } from "@/lib/dataset-files";
+import { AppLocale } from "@/lib/locale";
+import { getLabCaseGuide } from "@/lib/lab-case-guides";
+import {
+  buildDailyActivity,
+  buildNextSteps,
+  buildRecommendedNextStep,
+  buildTimeSpentSummary,
+  buildWeeklyActivity,
+  getWeakSkills,
+} from "@/lib/learning-analytics";
+import { getMentorPlainText } from "@/lib/mentor-content";
 import { prisma } from "@/lib/prisma";
-import { getSkillLabel } from "@/lib/labels";
-import { average } from "@/lib/utils";
+import { getLevelLabel, getSkillLabel } from "@/lib/labels";
+import { average, formatDate } from "@/lib/utils";
 
 function parseJsonArray(value: string) {
   try {
@@ -153,27 +164,50 @@ export async function getLessonDetails(lessonId: string, userId: string) {
 
   if (!lesson || !lesson.quizzes.length) return null;
 
-  const progress = await prisma.progress.findFirst({
-    where: {
-      userId,
-      lessonId,
-      type: "LESSON",
-      completed: true,
-    },
-  });
+  const [progress, nextLesson] = await Promise.all([
+    prisma.progress.findFirst({
+      where: {
+        userId,
+        lessonId,
+        type: "LESSON",
+        completed: true,
+      },
+    }),
+    prisma.lesson.findFirst({
+      where: {
+        courseId: lesson.courseId,
+        order: {
+          gt: lesson.order,
+        },
+      },
+      orderBy: { order: "asc" },
+      select: {
+        id: true,
+        title: true,
+        order: true,
+      },
+    }),
+  ]);
 
   return {
     ...lesson,
+    courseHref: `/courses/${lesson.courseId}`,
     theorySections: lesson.content.split("\n\n").filter(Boolean),
     quizzes: lesson.quizzes.map((quiz) => ({
       ...quiz,
       options: parseJsonArray(quiz.options),
     })),
     completed: Boolean(progress),
+    nextLesson: nextLesson
+      ? {
+          ...nextLesson,
+          href: `/lessons/${nextLesson.id}`,
+        }
+      : null,
   };
 }
 
-export async function getLabs(userId: string, q?: string) {
+export async function getLabs(userId: string, q?: string, locale: AppLocale = "ru") {
   const [labs, progress] = await Promise.all([
     prisma.lab.findMany({
       orderBy: { deadline: "asc" },
@@ -210,6 +244,7 @@ export async function getLabDetails(labId: string, userId: string) {
 
   return {
     ...lab,
+    caseGuide: getLabCaseGuide(lab.title),
     latestSubmission,
   };
 }
@@ -331,12 +366,21 @@ type DatasetDownload = {
 };
 
 export async function getDatasetDownload(userId: string, role: UserRole, datasetId: string): Promise<DatasetDownload | null> {
-  if (role === UserRole.TEACHER) {
+  if (role !== UserRole.STUDENT) {
     const dataset = await prisma.dataset.findUnique({ where: { id: datasetId } });
     if (!dataset) return null;
 
-    const filePath = path.join(process.cwd(), "public", "datasets", dataset.filename);
-    const content = await readFile(filePath, "utf8");
+    const filePath = resolveDatasetFilePath(dataset.filename);
+    if (!filePath) return null;
+
+    let content: string;
+
+    try {
+      content = await readFile(filePath, "utf8");
+    } catch {
+      return null;
+    }
+
     const rows = parseCsvToRows(content);
 
     return {
@@ -464,8 +508,16 @@ export async function getLabDatasetCsv(datasetId: string) {
   const dataset = await prisma.dataset.findUnique({ where: { id: datasetId } });
   if (!dataset) return null;
 
-  const filePath = path.join(process.cwd(), "public", "datasets", dataset.filename);
-  const content = await readFile(filePath, "utf8");
+  const filePath = resolveDatasetFilePath(dataset.filename);
+  if (!filePath) return null;
+
+  let content: string;
+
+  try {
+    content = await readFile(filePath, "utf8");
+  } catch {
+    return null;
+  }
 
   return {
     filename: dataset.filename,
@@ -514,61 +566,56 @@ export async function getProfileData(userId: string) {
 }
 
 export async function getDashboardData(userId: string) {
-  const [
-    user,
-    courseProgress,
-    lessonsCompleted,
-    labSubmissions,
-    skillProgress,
-    mentorMessages,
-    labs,
-    activityProgress,
-  ] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, role: true, level: true },
-    }),
-    prisma.progress.findMany({
-      where: { userId, type: "COURSE" },
-    }),
-    prisma.progress.count({
-      where: { userId, type: "LESSON", completed: true },
-    }),
-    prisma.submission.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      include: { lab: true },
-    }),
-    prisma.skillProgress.findMany({
-      where: { userId },
-    }),
-    prisma.mentorMessage.findMany({
-      where: { userId, role: "AI" },
-      orderBy: { createdAt: "desc" },
-      take: 3,
-    }),
-    prisma.lab.findMany({
-      take: 4,
-      orderBy: { deadline: "asc" },
-      include: { dataset: true },
-    }),
-    prisma.progress.findMany({
-      where: { userId },
-      orderBy: { updatedAt: "desc" },
-      take: 7,
-    }),
-  ]);
+  const [user, courseProgress, labSubmissions, skillProgress, mentorMessages, labs, lessonProgress] =
+    await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, role: true, level: true },
+      }),
+      prisma.progress.findMany({
+        where: { userId, type: "COURSE" },
+      }),
+      prisma.submission.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        include: { lab: true },
+      }),
+      prisma.skillProgress.findMany({
+        where: { userId },
+      }),
+      prisma.mentorMessage.findMany({
+        where: { userId, role: "AI" },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.lab.findMany({
+        take: 4,
+        orderBy: { deadline: "asc" },
+        include: { dataset: true },
+      }),
+      prisma.progress.findMany({
+        where: { userId, type: "LESSON", completed: true },
+        include: {
+          lesson: {
+            select: { estimatedMinutes: true },
+          },
+        },
+      }),
+    ]);
 
+  const lessonsCompleted = lessonProgress.length;
   const averageScore = average(labSubmissions.map((item) => item.score));
-  const overallProgress = average(courseProgress.map((item) => item.value)) || 68;
-
-  const activity = Array.from({ length: 7 }).map((_, index) => {
-    const item = activityProgress[index];
-    return {
-      name: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"][index],
-      value: item?.value ?? 24 + index * 7,
-    };
-  });
+  const overallProgress = average(courseProgress.map((item) => item.value));
+  const activity = buildDailyActivity([
+    ...courseProgress.map((item) => ({ date: item.updatedAt, weight: 1 })),
+    ...lessonProgress.map((item) => ({ date: item.updatedAt, weight: 1 })),
+    ...labSubmissions.map((item) => ({ date: item.createdAt, weight: 2 })),
+    ...mentorMessages.map((item) => ({ date: item.createdAt, weight: 1 })),
+  ]);
+  const submittedLabIds = new Set(labSubmissions.map((item) => item.labId));
+  const pendingLabs = labs
+    .filter((lab) => !submittedLabIds.has(lab.id))
+    .map((lab) => ({ title: lab.title, difficulty: lab.difficulty }));
+  const lessonMinutes = lessonProgress.reduce((sum, item) => sum + (item.lesson?.estimatedMinutes ?? 0), 0);
 
   return {
     userName: user?.name || "Студент",
@@ -577,7 +624,7 @@ export async function getDashboardData(userId: string) {
       lessonsCompleted,
       labsCompleted: labSubmissions.length,
       averageScore,
-      mentorTips: mentorMessages.length * 12 || 36,
+      mentorTips: mentorMessages.length,
       overallProgress,
     },
     activity,
@@ -588,22 +635,21 @@ export async function getDashboardData(userId: string) {
       status: labSubmissions.find((item) => item.labId === lab.id) ? "Отправлено" : "Открыто",
       deadline: lab.deadline,
     })),
-    mentorFeedback: mentorMessages,
-    recommendedStep:
-      skillProgress.find((item) => item.skill === "Machine Learning")?.value &&
-      skillProgress.find((item) => item.skill === "Machine Learning")!.value < 50
-        ? "Повторите тему признаков и попробуйте ещё раз лабораторную по прогнозу академической задолженности."
-        : "Продолжайте курс по визуализации и добавляйте более точные выводы к каждому графику.",
-    timeSpent: [
-      { label: "Уроки по Python", hours: "4 ч 20 мин", progress: 76 },
-      { label: "Анализ успеваемости", hours: "3 ч 10 мин", progress: 58 },
-      { label: "Практика по ИИ", hours: "2 ч 40 мин", progress: 41 },
-    ],
+    mentorFeedback: mentorMessages.slice(0, 3).map((item) => ({
+      ...item,
+      previewText: getMentorPlainText(item.content),
+    })),
+    recommendedStep: buildRecommendedNextStep(skillProgress, pendingLabs),
+    timeSpent: buildTimeSpentSummary({
+      lessonMinutes,
+      submittedLabsCount: labSubmissions.length,
+      mentorRepliesCount: mentorMessages.length,
+    }),
   };
 }
 
 export async function getProgressPageData(userId: string) {
-  const [skills, lessons, labs, courseProgress] = await Promise.all([
+  const [skills, lessons, labs, courseProgress, submittedLabProgress, availableLabs] = await Promise.all([
     prisma.skillProgress.findMany({
       where: { userId },
     }),
@@ -622,52 +668,62 @@ export async function getProgressPageData(userId: string) {
     prisma.progress.findMany({
       where: { userId, type: "COURSE" },
     }),
+    prisma.progress.findMany({
+      where: { userId, type: "LAB", completed: true },
+      select: { labId: true },
+    }),
+    prisma.lab.findMany({
+      orderBy: { deadline: "asc" },
+      take: 4,
+      select: { id: true, title: true, difficulty: true },
+    }),
   ]);
 
-  const weakTopics = skills.filter((item) => item.value < 50);
+  const weakTopics = getWeakSkills(skills);
+  const submittedLabIds = new Set(submittedLabProgress.flatMap((item) => (item.labId ? [item.labId] : [])));
+  const pendingLabs = availableLabs.filter((lab) => !submittedLabIds.has(lab.id));
 
   return {
-    overallProgress: average(courseProgress.map((item) => item.value)) || 0,
+    overallProgress: average(courseProgress.map((item) => item.value)),
     skills,
     lessons,
     labs,
     weakTopics,
-    activity: [
-      { week: "Неделя 1", value: 22 },
-      { week: "Неделя 2", value: 35 },
-      { week: "Неделя 3", value: 49 },
-      { week: "Неделя 4", value: 63 },
-      { week: "Неделя 5", value: 70 },
-    ],
-    nextSteps: [
-      "Повторить тему признаков и предобработки данных.",
-      "Завершить лабораторную по визуализации данных.",
-      "Сравнить два подхода к итоговому ML-кейсу.",
-    ],
+    activity: buildWeeklyActivity([
+      ...courseProgress.map((item) => ({ date: item.updatedAt, weight: 1 })),
+      ...lessons.map((item) => ({ date: item.updatedAt, weight: 1 })),
+      ...labs.map((item) => ({ date: item.createdAt, weight: 2 })),
+    ]),
+    nextSteps: buildNextSteps(skills, pendingLabs),
   };
 }
 
 export async function getTeacherAnalytics() {
-  const [students, submissions, completedLabs, skills, courses, datasets] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: UserRole.STUDENT },
-      select: { id: true, name: true, email: true, level: true, createdAt: true },
-    }),
-    prisma.submission.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        user: { select: { name: true } },
-        lab: { select: { title: true } },
-      },
-      take: 10,
-    }),
-    prisma.progress.count({
-      where: { type: "LAB", completed: true },
-    }),
-    prisma.skillProgress.findMany(),
-    prisma.course.findMany({ orderBy: { title: "asc" } }),
-    prisma.dataset.findMany({ orderBy: { title: "asc" } }),
-  ]);
+  const [students, submissions, completedLabs, skills, courses, datasets, submissionMetrics] =
+    await Promise.all([
+      prisma.user.findMany({
+        where: { role: UserRole.STUDENT },
+        select: { id: true, name: true, email: true, level: true, createdAt: true },
+      }),
+      prisma.submission.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { name: true } },
+          lab: { select: { title: true } },
+        },
+        take: 10,
+      }),
+      prisma.progress.count({
+        where: { type: "LAB", completed: true },
+      }),
+      prisma.skillProgress.findMany(),
+      prisma.course.findMany({ orderBy: { title: "asc" } }),
+      prisma.dataset.findMany({ orderBy: { title: "asc" } }),
+      prisma.submission.aggregate({
+        _avg: { score: true },
+        _count: { _all: true },
+      }),
+    ]);
 
   const groupedSkills = skills.reduce<Record<string, number[]>>((acc, item) => {
     acc[item.skill] ||= [];
@@ -682,8 +738,8 @@ export async function getTeacherAnalytics() {
 
   return {
     studentsCount: students.length,
-    submissionsCount: submissions.length,
-    averageScore: average(submissions.map((item) => item.score)),
+    submissionsCount: submissionMetrics._count._all,
+    averageScore: Math.round(submissionMetrics._avg.score ?? 0),
     completedLabs,
     students,
     submissions: submissions.map((submission) => ({
@@ -707,6 +763,91 @@ export async function getTeacherAnalytics() {
       ...dataset,
       tags: parseJsonArray(dataset.tags),
     })),
+  };
+}
+
+export async function getAdminDashboardData() {
+  const [students, teachers, submissions, completedLessons, completedLabs] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: UserRole.STUDENT },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        level: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.user.findMany({
+      where: { role: UserRole.TEACHER },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        level: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.submission.findMany({
+      select: {
+        userId: true,
+        score: true,
+      },
+    }),
+    prisma.progress.findMany({
+      where: { type: "LESSON", completed: true },
+      select: { userId: true },
+    }),
+    prisma.progress.count({
+      where: { type: "LAB", completed: true },
+    }),
+  ]);
+
+  const lessonCountByUser = completedLessons.reduce<Record<string, number>>((acc, item) => {
+    acc[item.userId] = (acc[item.userId] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const submissionsByUser = submissions.reduce<Record<string, number[]>>((acc, item) => {
+    acc[item.userId] ||= [];
+    acc[item.userId].push(item.score);
+    return acc;
+  }, {});
+
+  const studentRows = students.map((student) => {
+    const studentScores = submissionsByUser[student.id] ?? [];
+
+    return {
+      ...student,
+      completedLessons: lessonCountByUser[student.id] ?? 0,
+      submittedLabs: studentScores.length,
+      averageScore: average(studentScores),
+    };
+  });
+
+  const pendingTeachers = teachers.filter((teacher) => teacher.status === UserStatus.PENDING);
+  const approvedTeachersCount = teachers.filter((teacher) => teacher.status === UserStatus.APPROVED).length;
+
+  return {
+    stats: {
+      studentsCount: studentRows.length,
+      approvedTeachersCount,
+      pendingTeachersCount: pendingTeachers.length,
+      averageScore: average(submissions.map((item) => item.score)),
+      completedLessonsCount: completedLessons.length,
+      completedLabsCount: completedLabs,
+    },
+    pendingTeachers,
+    studentRows,
+    users: [...teachers, ...studentRows].sort(
+      (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+    ),
   };
 }
 
@@ -736,6 +877,33 @@ export async function getGlobalSearchResults(userId: string, role: UserRole, q?:
 }
 
 export async function getNotificationsForUser(userId: string, role: UserRole) {
+  if (role === UserRole.ADMIN) {
+    const [pendingTeachers, totalStudents] = await Promise.all([
+      prisma.user.findMany({
+        where: { role: UserRole.TEACHER, status: UserStatus.PENDING },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, name: true, email: true },
+      }),
+      prisma.user.count({ where: { role: UserRole.STUDENT } }),
+    ]);
+
+    return [
+      {
+        id: "admin-students",
+        title: "Сводка по обучающимся",
+        description: `Сейчас на платформе ${totalStudents} студентов. Полная статистика и управление пользователями доступны в админ-панели.`,
+        href: "/admin",
+      },
+      ...pendingTeachers.map((teacher) => ({
+        id: teacher.id,
+        title: `Новая заявка преподавателя: ${teacher.name}`,
+        description: `${teacher.email} ожидает одобрения администратора.`,
+        href: "/admin",
+      })),
+    ];
+  }
+
   if (role === UserRole.TEACHER) {
     const [recentSubmissions, weakSkills, totalStudents] = await Promise.all([
       prisma.submission.findMany({
@@ -806,7 +974,7 @@ export async function getNotificationsForUser(userId: string, role: UserRole) {
     ...mentorMessages.map((message) => ({
       id: message.id,
       title: "Совет ИИ-наставника",
-      description: message.content,
+      description: getMentorPlainText(message.content),
       href: "/mentor",
     })),
     ...upcomingLabs.map((lab) => ({
@@ -822,4 +990,313 @@ export async function getNotificationsForUser(userId: string, role: UserRole) {
       href: "/progress",
     })),
   ];
+}
+
+function translateLabStatus(status: string, locale: AppLocale) {
+  if (locale === "ru") return status;
+  if (status === "Открыто") return "Open";
+  if (status === "Проверено") return "Reviewed";
+  if (status === "Отправлено") return "Submitted";
+  return status;
+}
+
+function translateStudentDatasetCard(
+  item: {
+    id: string;
+    title: string;
+    description: string;
+    filename: string;
+    rowsCount: number;
+    size: string;
+    tags: string[];
+    downloadHref: string;
+    downloadLabel: string;
+    secondaryHref?: string;
+    secondaryLabel?: string;
+    audience: "student" | "teacher";
+  },
+  locale: AppLocale,
+) {
+  if (locale === "ru") return item;
+
+  if (item.id === "student-performance") {
+    return {
+      ...item,
+      title: "My performance",
+      description:
+        "A clear personal report showing which labs are already submitted, what scores were received, and what the current average score is.",
+      size: "Excel report",
+      tags: ["personal report", "scores", "performance"],
+      downloadLabel: "Download Excel",
+      secondaryLabel: "Open progress",
+    };
+  }
+
+  if (item.id === "student-ranking") {
+    return {
+      ...item,
+      title: "My ranking among students",
+      description: item.description
+        .replace("Сводка по текущей позиции в рейтинге. Сейчас вы занимаете", "Current ranking summary. You are now in")
+        .replace("место из", "place out of")
+        .replace("средний балл —", "average score is"),
+      size: "Excel report",
+      tags: ["ranking", "comparison", "group"],
+      downloadLabel: "Download Excel",
+      secondaryLabel: "Open dashboard",
+    };
+  }
+
+  if (item.id === "student-level") {
+    return {
+      ...item,
+      title: "My level and skills",
+      description: "A personal report with the current learning level and mastery of key data analytics and AI skills.",
+      size: "Excel report",
+      tags: ["level", "skills", "personal progress"],
+      downloadLabel: "Download Excel",
+      secondaryLabel: "Open profile",
+    };
+  }
+
+  return item;
+}
+
+export async function getDatasetsForUserLocalized(
+  userId: string,
+  role: UserRole,
+  q?: string,
+  locale: AppLocale = "ru",
+) {
+  const items = await getDatasetsForUser(userId, role, q);
+
+  return items.map((item) => {
+    if (role === UserRole.STUDENT) {
+      return translateStudentDatasetCard(item, locale);
+    }
+
+    if (locale === "ru") return item;
+
+    return {
+      ...item,
+      downloadLabel: "Download Excel",
+      secondaryLabel: item.secondaryLabel ? "Find lab" : item.secondaryLabel,
+      size: item.size === "Excel-отчёт" ? "Excel report" : item.size,
+    };
+  });
+}
+
+export async function getLabsLocalized(userId: string, q?: string, locale: AppLocale = "ru") {
+  const labs = await getLabs(userId, q);
+  return labs.map((lab) => ({
+    ...lab,
+    status: translateLabStatus(lab.status, locale),
+  }));
+}
+
+export async function getGlobalSearchResultsLocalized(
+  userId: string,
+  role: UserRole,
+  q?: string,
+  locale: AppLocale = "ru",
+) {
+  const query = q?.trim() ?? "";
+  if (!query) {
+    return {
+      query: "",
+      courses: [],
+      labs: [],
+      datasets: [],
+    };
+  }
+
+  const [courses, labs, datasets] = await Promise.all([
+    getCoursesForUser(userId, query),
+    getLabsLocalized(userId, query, locale),
+    getDatasetsForUserLocalized(userId, role, query, locale),
+  ]);
+
+  return {
+    query,
+    courses: courses.slice(0, 6),
+    labs: labs.slice(0, 6),
+    datasets: datasets.slice(0, 6),
+  };
+}
+
+export async function getDashboardDataLocalized(userId: string, locale: AppLocale = "ru") {
+  const [user, skillProgress, courseProgress, lessonProgress, labSubmissions, labs, mentorMessages] =
+    await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, level: true },
+      }),
+      prisma.skillProgress.findMany({
+        where: { userId },
+        orderBy: { skill: "asc" },
+      }),
+      prisma.progress.findMany({
+        where: { userId, type: "COURSE" },
+        orderBy: { updatedAt: "desc" },
+      }),
+      prisma.progress.findMany({
+        where: { userId, type: "LESSON", completed: true },
+        include: { lesson: true },
+        orderBy: { updatedAt: "desc" },
+      }),
+      prisma.submission.findMany({
+        where: { userId },
+        include: { lab: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.lab.findMany({
+        take: 4,
+        orderBy: { deadline: "asc" },
+      }),
+      prisma.mentorMessage.findMany({
+        where: { userId, role: "AI" },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+      }),
+    ]);
+
+  const lessonsCompleted = lessonProgress.length;
+  const averageScore = average(labSubmissions.map((item) => item.score));
+  const overallProgress = average(courseProgress.map((item) => item.value));
+  const activity = buildDailyActivity(
+    [
+      ...courseProgress.map((item) => ({ date: item.updatedAt, weight: 1 })),
+      ...lessonProgress.map((item) => ({ date: item.updatedAt, weight: 1 })),
+      ...labSubmissions.map((item) => ({ date: item.createdAt, weight: 2 })),
+      ...mentorMessages.map((item) => ({ date: item.createdAt, weight: 1 })),
+    ],
+    7,
+    locale,
+  );
+  const submittedLabIds = new Set(labSubmissions.map((item) => item.labId));
+  const pendingLabs = labs
+    .filter((lab) => !submittedLabIds.has(lab.id))
+    .map((lab) => ({ title: lab.title, difficulty: lab.difficulty }));
+  const lessonMinutes = lessonProgress.reduce((sum, item) => sum + (item.lesson?.estimatedMinutes ?? 0), 0);
+
+  return {
+    userName: user?.name || (locale === "en" ? "Student" : "Студент"),
+    userLevel: user?.level || "Beginner",
+    stats: {
+      lessonsCompleted,
+      labsCompleted: labSubmissions.length,
+      averageScore,
+      mentorTips: mentorMessages.length,
+      overallProgress,
+    },
+    activity,
+    skillProgress,
+    recentLabs: labs.map((lab) => ({
+      id: lab.id,
+      title: lab.title,
+      status: submittedLabIds.has(lab.id) ? (locale === "en" ? "Submitted" : "Отправлено") : locale === "en" ? "Open" : "Открыто",
+      deadline: lab.deadline,
+    })),
+    mentorFeedback: mentorMessages.slice(0, 3).map((item) => ({
+      ...item,
+      previewText: getMentorPlainText(item.content),
+    })),
+    recommendedStep: buildRecommendedNextStep(skillProgress, pendingLabs, locale),
+    timeSpent: buildTimeSpentSummary(
+      {
+        lessonMinutes,
+        submittedLabsCount: labSubmissions.length,
+        mentorRepliesCount: mentorMessages.length,
+      },
+      locale,
+    ),
+  };
+}
+
+export async function getProgressPageDataLocalized(userId: string, locale: AppLocale = "ru") {
+  const data = await getProgressPageData(userId);
+  const translateStep = (step: string) => {
+    if (locale === "ru") return step;
+    return step
+      .replace(/^Повторить тему «/, 'Review the topic "')
+      .replace(/^Завершить кейс «/, 'Complete the lab "')
+      .replace(/» и закрыть пробелы в теории\.$/, '" and close the theory gaps.')
+      .replace(/» и оформить выводы по результатам анализа\.$/, '" and write up the conclusions from your analysis.')
+      .replace(
+        "Продолжить следующий модуль курса и закрепить материал новой практической работой.",
+        "Continue to the next course module and reinforce the material with a new practical task.",
+      );
+  };
+
+  return {
+    ...data,
+    activity: buildWeeklyActivity(
+      [
+        ...data.lessons.map((item) => ({ date: item.updatedAt, weight: 1 })),
+        ...data.labs.map((item) => ({ date: item.createdAt, weight: 2 })),
+      ],
+      5,
+      locale,
+    ),
+    nextSteps: data.nextSteps.map(translateStep),
+  };
+}
+
+export async function getNotificationsForUserLocalized(
+  userId: string,
+  role: UserRole,
+  locale: AppLocale = "ru",
+) {
+  const notifications = await getNotificationsForUser(userId, role);
+
+  if (locale === "ru") return notifications;
+
+  return notifications.map((item) => {
+    if (item.href === "/admin" && item.id === "admin-students") {
+      return {
+        ...item,
+        title: "Learner summary",
+        description: item.description
+          .replace("Сейчас на платформе", "There are currently")
+          .replace(
+            "студентов. Полная статистика и управление пользователями доступны в админ-панели.",
+            "students on the platform. Full statistics and user management are available in the admin panel.",
+          ),
+      };
+    }
+    if (item.href === "/admin" && item.title.startsWith("Новая заявка преподавателя:")) {
+      return {
+        ...item,
+        title: item.title.replace("Новая заявка преподавателя:", "New teacher request:"),
+        description: item.description.replace("ожидает одобрения администратора.", "is waiting for administrator approval."),
+      };
+    }
+    if (item.href === "/mentor" && item.title === "Совет ИИ-наставника") {
+      return { ...item, title: "AI mentor tip" };
+    }
+    if (item.href === "/teacher" && item.id === "teacher-students") {
+      return {
+        ...item,
+        title: "Group roster updated",
+        description: item.description.replace("Сейчас на платформе", "There are currently").replace("студентов. Проверьте общую динамику и слабые темы группы.", "students on the platform. Review overall dynamics and weak group topics."),
+      };
+    }
+    if (item.href.startsWith("/labs/") && item.title.startsWith("Скоро дедлайн:")) {
+      return {
+        ...item,
+        title: item.title.replace("Скоро дедлайн:", "Deadline soon:"),
+        description: "Check the lab and submit your solution before the due date.",
+      };
+    }
+    if (item.href === "/progress" && item.title.startsWith("Нужно подтянуть:")) {
+      return {
+        ...item,
+        title: item.title.replace("Нужно подтянуть:", "Needs improvement:"),
+        description: item.description
+          .replace("Текущее освоение по этому навыку —", "Current mastery of this skill is")
+          .replace("Рекомендуется повторить уроки и пройти практику.", "It is recommended to review the lessons and complete more practice."),
+      };
+    }
+    return item;
+  });
 }

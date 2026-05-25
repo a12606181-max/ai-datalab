@@ -19,14 +19,33 @@ export function LoginForm() {
     if (state.message && !state.success) pushToast(state.message, "error");
   }, [state, pushToast]);
 
+  useEffect(() => {
+    const redirectTo = typeof state.data?.redirectTo === "string" ? state.data.redirectTo : null;
+    if (!state.success || !redirectTo) return;
+
+    window.location.replace(redirectTo);
+  }, [state.data, state.success]);
+
   return (
     <form action={action} className="space-y-5">
       <div>
-        <FormInput name="email" type="email" label="Электронная почта" icon={Mail} placeholder="student@aidatalab.ru" />
+        <FormInput
+          name="email"
+          type="email"
+          label="Электронная почта"
+          icon={Mail}
+          placeholder="student@aidatalab.ru"
+        />
         <ErrorMessage error={state.fieldErrors?.email} />
       </div>
       <div>
-        <FormInput name="password" type="password" label="Пароль" icon={LockKeyhole} placeholder="Введите пароль" />
+        <FormInput
+          name="password"
+          type="password"
+          label="Пароль"
+          icon={LockKeyhole}
+          placeholder="Введите пароль"
+        />
         <ErrorMessage error={state.fieldErrors?.password} />
       </div>
       <FormSubmitButton label="Войти в платформу" loadingLabel="Вход..." className="w-full justify-center" />

@@ -38,7 +38,7 @@ export async function sendMentorMessageAction(
       data: {
         userId: user.id,
         role: "AI",
-        content: await generateMentorAnswer(parsed.data.message),
+        content: await generateMentorAnswer(user.id, parsed.data.message),
       },
     });
 

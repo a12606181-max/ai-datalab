@@ -3,11 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "check": "npm run lint && npm run test && npm run build",
     "dev": "next dev",
     "build": "next build",
     "deploy:start": "npx prisma migrate deploy && next start",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio"
   },
@@ -42,6 +45,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4",
     "tsx": "^4.21.0",
     "typescript": "^5"
   }

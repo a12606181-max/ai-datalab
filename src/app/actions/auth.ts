@@ -1,12 +1,11 @@
 "use server";
 
-import { UserRole } from "@prisma/client";
-import { redirect } from "next/navigation";
+import { UserGender, UserRole, UserStatus } from "@prisma/client";
 
 import { ActionState } from "@/lib/action-state";
 import { createSession, hashPassword, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { registerSchema, loginSchema } from "@/lib/validations";
+import { loginSchema, registerSchema } from "@/lib/validations";
 
 export async function registerAction(
   _prevState: ActionState,
@@ -19,6 +18,8 @@ export async function registerAction(
       password: formData.get("password"),
       confirmPassword: formData.get("confirmPassword"),
       role: formData.get("role"),
+      gender: formData.get("gender"),
+      avatarKey: formData.get("avatarKey"),
       acceptTerms: formData.get("acceptTerms"),
     });
 
@@ -30,7 +31,7 @@ export async function registerAction(
       };
     }
 
-    const { name, email, password, role } = parsed.data;
+    const { name, email, password, role, gender, avatarKey } = parsed.data;
     const existingUser = await prisma.user.findUnique({ where: { email } });
 
     if (existingUser) {
@@ -41,11 +42,16 @@ export async function registerAction(
       };
     }
 
+    const isTeacherRequest = role === "TEACHER";
+
     const user = await prisma.user.create({
       data: {
         name,
         email,
         role: role as UserRole,
+        status: isTeacherRequest ? UserStatus.PENDING : UserStatus.APPROVED,
+        gender: gender as UserGender,
+        avatarKey,
         passwordHash: await hashPassword(password),
         level: role === "TEACHER" ? "Expert" : "Beginner",
       },
@@ -63,15 +69,24 @@ export async function registerAction(
       });
     }
 
+    if (isTeacherRequest) {
+      return {
+        success: true,
+        message: "Заявка преподавателя отправлена администратору. Войти в кабинет можно будет после одобрения.",
+      };
+    }
+
     await createSession({ userId: user.id, role: user.role });
+    return {
+      success: true,
+      data: { redirectTo: "/dashboard" },
+    };
   } catch {
     return {
       success: false,
       message: "Не удалось зарегистрироваться. Попробуйте ещё раз.",
     };
   }
-
-  redirect("/dashboard");
 }
 
 export async function loginAction(
@@ -104,6 +119,26 @@ export async function loginAction(
       };
     }
 
+    if (user.role === UserRole.TEACHER && user.status === UserStatus.PENDING) {
+      return {
+        success: false,
+        message: "Заявка преподавателя ещё не одобрена администратором.",
+        fieldErrors: {
+          email: ["Дождитесь одобрения администратора, прежде чем входить в кабинет преподавателя."],
+        },
+      };
+    }
+
+    if (user.role === UserRole.TEACHER && user.status === UserStatus.REJECTED) {
+      return {
+        success: false,
+        message: "Заявка преподавателя была отклонена администратором.",
+        fieldErrors: {
+          email: ["Эта заявка была отклонена. При необходимости зарегистрируйтесь заново с другим email."],
+        },
+      };
+    }
+
     const passwordValid = await verifyPassword(parsed.data.password, user.passwordHash);
     if (!passwordValid) {
       return {
@@ -114,12 +149,14 @@ export async function loginAction(
     }
 
     await createSession({ userId: user.id, role: user.role });
+    return {
+      success: true,
+      data: { redirectTo: user.role === UserRole.ADMIN ? "/admin" : "/dashboard" },
+    };
   } catch {
     return {
       success: false,
       message: "Не удалось выполнить вход. Попробуйте снова.",
     };
   }
-
-  redirect("/dashboard");
 }

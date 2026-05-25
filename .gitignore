@@ -19,6 +19,8 @@
 
 # production
 /build
+/.deploy
+/test-results
 
 # misc
 .DS_Store
@@ -30,6 +32,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 dev-server.log
+dev-check.log
 
 # env files (can opt-in for committing if needed)
 .env*

@@ -7,21 +7,25 @@ import { FormEvent, useMemo } from "react";
 
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { getRoleLabel } from "@/lib/labels";
-import { ghostButtonClassName } from "@/components/ui/gradient-button";
+import { AppLocale, getLocaleMessages } from "@/lib/locale";
 
 export function Topbar({
+  locale,
   user,
 }: {
+  locale: AppLocale;
   user: {
     name: string;
     email: string;
-    role: "STUDENT" | "TEACHER";
+    role: "STUDENT" | "TEACHER" | "ADMIN";
+    avatarKey?: string | null;
   };
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
+  const messages = getLocaleMessages(locale);
 
   const isFilterablePage = useMemo(
     () => pathname.startsWith("/courses") || pathname.startsWith("/labs") || pathname.startsWith("/datasets"),
@@ -54,40 +58,51 @@ export function Topbar({
   return (
     <div className="sticky top-0 z-20 mb-8 flex flex-col gap-4 rounded-[28px] border border-white/8 bg-[#0d0a16]/85 px-4 py-4 backdrop-blur md:flex-row md:items-center md:justify-between md:px-6">
       <form onSubmit={handleSubmit} className="relative w-full max-w-2xl">
-        <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-white/35" />
         <input
           key={`${pathname}-${initialQuery}`}
           name="topbar-query"
           defaultValue={initialQuery}
           placeholder={
             isFilterablePage
-              ? "Найти курс, лабораторную или датасет..."
-              : "Найти урок, курс, лабораторную или набор данных..."
+              ? messages.topbar.filterSearchPlaceholder
+              : messages.topbar.globalSearchPlaceholder
           }
-          className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pr-28 pl-11 text-sm text-white outline-none placeholder:text-white/30 focus:border-fuchsia-400/35"
+          className="w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-4 pr-14 text-sm text-white outline-none placeholder:text-white/30 focus:border-fuchsia-400/35"
         />
         <button
           type="submit"
-          className="absolute top-1/2 right-2 -translate-y-1/2 rounded-2xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-4 py-2 text-xs font-medium text-fuchsia-100 transition hover:bg-fuchsia-500/20"
+          aria-label={messages.topbar.searchLabel}
+          title={messages.topbar.searchLabel}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/55 transition hover:text-white"
         >
-          Поиск
+          <Search className="h-5 w-5" />
         </button>
       </form>
 
       <div className="flex flex-wrap items-center justify-end gap-3">
         <Link
           href="/notifications"
-          className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/75 transition hover:border-fuchsia-400/35 hover:text-white"
-          aria-label="Открыть уведомления"
-          title="Уведомления"
+          className="inline-flex items-center justify-center text-white/75 transition hover:text-white"
+          aria-label={messages.topbar.notificationsLabel}
+          title={messages.topbar.notificationsTitle}
         >
           <Bell className="h-5 w-5" />
         </Link>
-        <UserAvatar name={user.name} subtitle={getRoleLabel(user.role)} />
-        <Link href="/logout" className={ghostButtonClassName}>
-          <LogOut className="mr-2 h-4 w-4" />
-          Выйти
-        </Link>
+        <UserAvatar
+          name={user.name}
+          subtitle={getRoleLabel(user.role, locale)}
+          avatarKey={user.avatarKey}
+        />
+        <form action="/logout" method="post">
+          <button
+            type="submit"
+            aria-label={messages.topbar.logoutLabel}
+            title={messages.topbar.logoutLabel}
+            className="text-white/70 transition hover:text-white"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
+        </form>
       </div>
     </div>
   );

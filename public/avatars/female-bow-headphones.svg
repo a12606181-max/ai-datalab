@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="48" fill="#050507"/>
+  <defs>
+    <radialGradient id="headGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 176) rotate(90) scale(132 132)">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.72" stop-color="#FAFAFB"/>
+      <stop offset="1" stop-color="#E5E5EA"/>
+    </radialGradient>
+    <radialGradient id="bodyGlow2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 400) rotate(90) scale(170 128)">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#ECECF0"/>
+    </radialGradient>
+    <linearGradient id="pinkBow" x1="116" y1="132" x2="162" y2="168" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF78B0"/>
+      <stop offset="1" stop-color="#DF5B96"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="256" cy="392" rx="126" ry="148" fill="url(#bodyGlow2)"/>
+  <circle cx="256" cy="176" r="98" fill="url(#headGlow)"/>
+  <path d="M162 177C162 123 205 80 256 80C307 80 350 123 350 177" stroke="#D4D6DC" stroke-width="16" stroke-linecap="round"/>
+  <path d="M175 177C175 130 212 94 256 94C300 94 337 130 337 177" stroke="#B8BBC3" stroke-width="8" stroke-linecap="round"/>
+  <rect x="132" y="126" width="52" height="94" rx="26" fill="#EBEDF2"/>
+  <rect x="328" y="126" width="52" height="94" rx="26" fill="#EBEDF2"/>
+  <rect x="140" y="134" width="36" height="78" rx="18" fill="#D9DCE3"/>
+  <rect x="336" y="134" width="36" height="78" rx="18" fill="#D9DCE3"/>
+  <path d="M111 131C111 114 127 103 144 108C150 110 156 115 160 123C164 115 170 110 176 108C193 103 209 114 209 131C209 149 190 159 177 157C170 156 164 152 160 147C156 152 150 156 143 157C130 159 111 149 111 131Z" fill="url(#pinkBow)"/>
+  <path d="M303 131C303 114 319 103 336 108C342 110 348 115 352 123C356 115 362 110 368 108C385 103 401 114 401 131C401 149 382 159 369 157C362 156 356 152 352 147C348 152 342 156 335 157C322 159 303 149 303 131Z" fill="url(#pinkBow)"/>
+  <rect x="153" y="120" width="14" height="14" rx="7" fill="#F58CB8"/>
+  <rect x="345" y="120" width="14" height="14" rx="7" fill="#F58CB8"/>
+</svg>

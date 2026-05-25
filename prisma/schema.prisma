@@ -10,6 +10,18 @@ datasource db {
 enum UserRole {
   STUDENT
   TEACHER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum UserGender {
+  MALE
+  FEMALE
 }
 
 enum ProgressType {
@@ -34,6 +46,9 @@ model User {
   email          String          @unique
   passwordHash   String
   role           UserRole
+  status         UserStatus      @default(APPROVED)
+  gender         UserGender?
+  avatarKey      String?
   level          String          @default("Beginner")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -70,18 +85,18 @@ model Lesson {
 }
 
 model Quiz {
-  id            String   @id @default(cuid())
+  id            String @id @default(cuid())
   lessonId      String
   order         Int
   question      String
   options       String
   correctAnswer String
   explanation   String
-  lesson        Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson        Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 }
 
 model Lab {
-  id              String        @id @default(cuid())
+  id              String       @id @default(cuid())
   title           String
   description     String
   goal            String
@@ -89,9 +104,9 @@ model Lab {
   deadline        DateTime
   datasetId       String?
   requiredFormat  String?
-  minAnswerLength Int           @default(30)
-  createdAt       DateTime      @default(now())
-  dataset         Dataset?      @relation(fields: [datasetId], references: [id], onDelete: SetNull)
+  minAnswerLength Int          @default(30)
+  createdAt       DateTime     @default(now())
+  dataset         Dataset?     @relation(fields: [datasetId], references: [id], onDelete: SetNull)
   submissions     Submission[]
   progress        Progress[]
 }

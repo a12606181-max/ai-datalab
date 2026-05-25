@@ -14,55 +14,68 @@ import {
   ChartNoAxesCombined,
   Shield,
   Menu,
+  Bell,
 } from "lucide-react";
 
 import { APP_NAME } from "@/lib/constants";
+import { AppLocale, getLocaleMessages } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
-const baseItems = [
-  { href: "/dashboard", label: "Панель", icon: LayoutDashboard },
-  { href: "/courses", label: "Курсы", icon: BookOpen },
-  { href: "/labs", label: "Лабораторные", icon: GraduationCap },
-  { href: "/datasets", label: "Мои данные", icon: Database },
-  { href: "/mentor", label: "ИИ-наставник", icon: BrainCircuit },
-  { href: "/progress", label: "Прогресс", icon: ChartNoAxesCombined },
-  { href: "/profile", label: "Профиль", icon: UserRound },
-  { href: "/settings", label: "Настройки", icon: Settings },
-];
-
 export function Sidebar({
+  locale,
   role,
   open,
   onClose,
   onOpen,
 }: {
-  role: "STUDENT" | "TEACHER";
+  locale: AppLocale;
+  role: "STUDENT" | "TEACHER" | "ADMIN";
   open: boolean;
   onClose: () => void;
   onOpen: () => void;
 }) {
   const pathname = usePathname();
+  const messages = getLocaleMessages(locale);
+
+  const baseItems = [
+    { href: "/dashboard", label: messages.nav.dashboard, icon: LayoutDashboard },
+    { href: "/courses", label: messages.nav.courses, icon: BookOpen },
+    { href: "/labs", label: messages.nav.labs, icon: GraduationCap },
+    { href: "/datasets", label: messages.nav.datasets, icon: Database },
+    { href: "/mentor", label: messages.nav.mentor, icon: BrainCircuit },
+    { href: "/progress", label: messages.nav.progress, icon: ChartNoAxesCombined },
+    { href: "/profile", label: messages.nav.profile, icon: UserRound },
+    { href: "/settings", label: messages.nav.settings, icon: Settings },
+  ];
 
   const navItems =
-    role === "TEACHER"
+    role === "ADMIN"
       ? [
-          { href: "/dashboard", label: "Панель", icon: LayoutDashboard },
-          { href: "/courses", label: "Курсы", icon: BookOpen },
-          { href: "/labs", label: "Лабораторные", icon: GraduationCap },
-          { href: "/datasets", label: "Датасеты", icon: Database },
-          { href: "/mentor", label: "ИИ-наставник", icon: BrainCircuit },
-          { href: "/progress", label: "Прогресс", icon: ChartNoAxesCombined },
-          { href: "/teacher", label: "Панель преподавателя", icon: Shield },
-          { href: "/profile", label: "Профиль", icon: UserRound },
-          { href: "/settings", label: "Настройки", icon: Settings },
+          { href: "/admin", label: messages.nav.admin, icon: Shield },
+          { href: "/notifications", label: messages.topbar.notificationsTitle, icon: Bell },
+          { href: "/profile", label: messages.nav.profile, icon: UserRound },
+          { href: "/settings", label: messages.nav.settings, icon: Settings },
         ]
-      : baseItems;
+      : role === "TEACHER"
+        ? [
+            { href: "/dashboard", label: messages.nav.dashboard, icon: LayoutDashboard },
+            { href: "/courses", label: messages.nav.courses, icon: BookOpen },
+            { href: "/labs", label: messages.nav.labs, icon: GraduationCap },
+            { href: "/datasets", label: messages.nav.datasets, icon: Database },
+            { href: "/mentor", label: messages.nav.mentor, icon: BrainCircuit },
+            { href: "/progress", label: messages.nav.progress, icon: ChartNoAxesCombined },
+            { href: "/teacher", label: messages.nav.teacher, icon: Shield },
+            { href: "/profile", label: messages.nav.profile, icon: UserRound },
+            { href: "/settings", label: messages.nav.settings, icon: Settings },
+          ]
+        : baseItems;
 
   return (
     <>
       <button
         onClick={onOpen}
         className="fixed top-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#120f1d]/90 text-white shadow-lg md:hidden"
+        aria-label="Open menu"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -70,7 +83,7 @@ export function Sidebar({
         <button
           onClick={onClose}
           className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
-          aria-label="Закрыть меню"
+          aria-label="Close menu"
         />
       ) : null}
       <aside
@@ -86,10 +99,10 @@ export function Sidebar({
             </span>
             <div>
               <p className="text-lg font-semibold text-white">{APP_NAME}</p>
-              <p className="text-xs text-white/45">Образовательная платформа</p>
+              <p className="text-xs text-white/45">{messages.common.appSubtitle}</p>
             </div>
           </Link>
-          <button onClick={onClose} className="md:hidden">
+          <button onClick={onClose} className="md:hidden" aria-label="Close menu">
             <X className="h-5 w-5 text-white/70" />
           </button>
         </div>
@@ -110,7 +123,7 @@ export function Sidebar({
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {label}
+                <span className="[overflow-wrap:anywhere]">{label}</span>
               </Link>
             );
           })}

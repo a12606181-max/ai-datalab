@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aidatalab-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: file:/app/data/ai-datalab.db
+      AUTH_SECRET: ${AUTH_SECRET}
+      MENTOR_API_KEY: ${MENTOR_API_KEY:-}
+      MENTOR_BASE_URL: ${MENTOR_BASE_URL:-}
+      MENTOR_MODEL: ${MENTOR_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.2}
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    volumes:
+      - ${DATA_DIR:-./data}:/app/data

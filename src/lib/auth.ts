@@ -1,6 +1,7 @@
-import { UserRole } from "@prisma/client";
+import { UserRole, UserStatus } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { jwtVerify, SignJWT } from "jose";
+import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -35,11 +36,18 @@ export async function signSession(payload: SessionPayload) {
 export async function createSession(payload: SessionPayload) {
   const token = await signSession(payload);
   const cookieStore = await cookies();
+  const requestHeaders = await headers();
+  const forwardedProto = requestHeaders.get("x-forwarded-proto");
+  const origin = requestHeaders.get("origin");
+  const secure =
+    forwardedProto === "https" ||
+    origin?.startsWith("https://") ||
+    process.env.COOKIE_SECURE === "true";
 
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
@@ -78,6 +86,9 @@ export async function getCurrentUser() {
       name: true,
       email: true,
       role: true,
+      status: true,
+      gender: true,
+      avatarKey: true,
       level: true,
       createdAt: true,
     },
@@ -92,7 +103,15 @@ export async function requireUser() {
 
 export async function requireTeacher() {
   const user = await requireUser();
-  if (user.role !== UserRole.TEACHER) {
+  if (user.role !== UserRole.TEACHER || user.status !== UserStatus.APPROVED) {
+    redirect("/dashboard?error=access-denied");
+  }
+  return user;
+}
+
+export async function requireAdmin() {
+  const user = await requireUser();
+  if (user.role !== UserRole.ADMIN) {
     redirect("/dashboard?error=access-denied");
   }
   return user;

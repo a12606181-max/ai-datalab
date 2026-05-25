@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="48" fill="#050507"/>
+  <defs>
+    <radialGradient id="face" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 194) rotate(90) scale(118 118)">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E9E9ED"/>
+    </radialGradient>
+    <radialGradient id="torso" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 412) rotate(90) scale(166 132)">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#ECECF0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="256" cy="402" rx="130" ry="152" fill="url(#torso)"/>
+  <circle cx="256" cy="192" r="106" fill="url(#face)"/>
+  <path d="M177 104L206 131L233 89L255 131L284 91L306 132L337 106L321 161H192L177 104Z" fill="#0E1014"/>
+  <path d="M194 159H319V176C319 182.627 313.627 188 307 188H206C199.373 188 194 182.627 194 176V159Z" fill="#141821"/>
+  <path d="M142 201H367V237L339 247L328 237H184L173 247L142 237V201Z" fill="#161A22"/>
+  <path d="M164 184L143 201H367L347 184H164Z" fill="#2A2F3B"/>
+  <rect x="173" y="196" width="70" height="34" rx="10" fill="#111317"/>
+  <rect x="269" y="196" width="70" height="34" rx="10" fill="#111317"/>
+  <rect x="243" y="206" width="26" height="9" rx="4.5" fill="#111317"/>
+  <g fill="#727989">
+    <rect x="188" y="208" width="6" height="6" rx="1"/>
+    <rect x="200" y="201" width="6" height="6" rx="1"/>
+    <rect x="212" y="208" width="6" height="6" rx="1"/>
+    <rect x="295" y="208" width="6" height="6" rx="1"/>
+    <rect x="307" y="201" width="6" height="6" rx="1"/>
+    <rect x="319" y="208" width="6" height="6" rx="1"/>
+  </g>
+</svg>

@@ -25,19 +25,27 @@ export function SubmissionTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-white/6 text-white/75">
-          {submissions.map((submission) => (
-            <tr key={submission.id}>
-              <td className="px-4 py-4">{submission.studentName}</td>
-              <td className="px-4 py-4">{submission.labTitle}</td>
-              <td className="px-4 py-4">{submission.score}%</td>
-              <td className="px-4 py-4">
-                <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2 py-1 text-xs text-fuchsia-200">
-                  {submission.status}
-                </span>
+          {submissions.length ? (
+            submissions.map((submission) => (
+              <tr key={submission.id}>
+                <td className="px-4 py-4">{submission.studentName}</td>
+                <td className="px-4 py-4">{submission.labTitle}</td>
+                <td className="px-4 py-4">{submission.score}%</td>
+                <td className="px-4 py-4">
+                  <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-2 py-1 text-xs text-fuchsia-200">
+                    {submission.status}
+                  </span>
+                </td>
+                <td className="px-4 py-4 text-white/45">{formatDate(submission.createdAt)}</td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={5} className="px-4 py-8 text-center text-white/50">
+                Отправок пока нет. Когда студенты начнут сдавать лабораторные, таблица заполнится автоматически.
               </td>
-              <td className="px-4 py-4 text-white/45">{formatDate(submission.createdAt)}</td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
     </div>

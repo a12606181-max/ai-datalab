@@ -1,0 +1,23 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="48" fill="#F8EAF1"/>
+  <defs>
+    <radialGradient id="softHead" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 176) rotate(90) scale(108 108)">
+      <stop stop-color="#EAA8C0"/>
+      <stop offset="1" stop-color="#D58FAC"/>
+    </radialGradient>
+    <radialGradient id="softBody" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 402) rotate(90) scale(176 132)">
+      <stop stop-color="#E9A3BE"/>
+      <stop offset="1" stop-color="#D58EAB"/>
+    </radialGradient>
+    <linearGradient id="bow" x1="126" y1="63" x2="212" y2="135" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF7EB4"/>
+      <stop offset="1" stop-color="#D85B94"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="256" cy="398" rx="132" ry="152" fill="url(#softBody)"/>
+  <circle cx="256" cy="176" r="102" fill="url(#softHead)"/>
+  <path d="M122 108C122 78 151 59 179 69C189 73 199 82 207 95C215 82 225 73 235 69C263 59 292 78 292 108C292 141 260 159 237 156C225 155 215 149 207 140C199 149 189 155 177 156C154 159 122 141 122 108Z" fill="url(#bow)"/>
+  <path d="M205 92H209C222 92 233 103 233 116C233 129 222 140 209 140H205C192 140 181 129 181 116C181 103 192 92 205 92Z" fill="#F78BB8"/>
+  <path d="M188 139L159 169L163 124L188 139Z" fill="#E06B9F"/>
+  <path d="M225 139L254 169L250 124L225 139Z" fill="#E06B9F"/>
+</svg>

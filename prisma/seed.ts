@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole } from "@prisma/client";
+import { PrismaClient, UserRole, UserStatus } from "@prisma/client";
 import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
@@ -581,6 +581,7 @@ async function main() {
 
   const studentPasswordHash = await bcrypt.hash("Student123", 10);
   const teacherPasswordHash = await bcrypt.hash("Teacher123", 10);
+  const adminPasswordHash = await bcrypt.hash("Admin123", 10);
 
   const student = await prisma.user.create({
     data: {
@@ -588,6 +589,7 @@ async function main() {
       email: "student@aidatalab.ru",
       passwordHash: studentPasswordHash,
       role: UserRole.STUDENT,
+      status: UserStatus.APPROVED,
       level: "Intermediate",
     },
   });
@@ -598,6 +600,29 @@ async function main() {
       email: "teacher@aidatalab.ru",
       passwordHash: teacherPasswordHash,
       role: UserRole.TEACHER,
+      status: UserStatus.APPROVED,
+      level: "Expert",
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      name: "Новый Преподаватель",
+      email: "pending-teacher@aidatalab.ru",
+      passwordHash: teacherPasswordHash,
+      role: UserRole.TEACHER,
+      status: UserStatus.PENDING,
+      level: "Expert",
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      name: "Главный Администратор",
+      email: "admin@aidatalab.ru",
+      passwordHash: adminPasswordHash,
+      role: UserRole.ADMIN,
+      status: UserStatus.APPROVED,
       level: "Expert",
     },
   });
@@ -768,6 +793,7 @@ async function main() {
   console.log({
     student: { email: "student@aidatalab.ru", password: "Student123" },
     teacher: { email: "teacher@aidatalab.ru", password: "Teacher123" },
+    admin: { email: "admin@aidatalab.ru", password: "Admin123" },
   });
 }
 
