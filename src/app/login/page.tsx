@@ -14,11 +14,18 @@ export default async function LoginPage() {
       <div className="relative z-10 w-full">
         <AuthCard
           title="Вход в AI DataLab"
-          description="Откройте рабочий кабинет студента или преподавателя, чтобы продолжить обучение, проверку лабораторных и анализ прогресса."
+          description="Откройте рабочий кабинет студента, преподавателя или администратора, чтобы продолжить обучение и проверку прогресса."
           footer={
-            <>
-              Демо-вход для студента: <span className="text-fuchsia-200">student@aidatalab.ru / Student123</span>
-            </>
+            <div className="space-y-1 text-sm">
+              <p>
+                Демо-вход для студента:{" "}
+                <span className="text-fuchsia-200">student@aidatalab.ru / Student123</span>
+              </p>
+              <p>
+                Вход для комиссии:{" "}
+                <span className="text-fuchsia-200">admin@aidatalab.ru / Admin123</span>
+              </p>
+            </div>
           }
         >
           <LoginForm />
