@@ -15,8 +15,8 @@ import {
 } from "@/lib/learning-analytics";
 import { getMentorPlainText } from "@/lib/mentor-content";
 import { prisma } from "@/lib/prisma";
-import { getLevelLabel, getSkillLabel } from "@/lib/labels";
-import { average, formatDate } from "@/lib/utils";
+import { getSkillLabel } from "@/lib/labels";
+import { average } from "@/lib/utils";
 
 function parseJsonArray(value: string) {
   try {
@@ -207,7 +207,7 @@ export async function getLessonDetails(lessonId: string, userId: string) {
   };
 }
 
-export async function getLabs(userId: string, q?: string, locale: AppLocale = "ru") {
+export async function getLabs(userId: string, q?: string) {
   const [labs, progress] = await Promise.all([
     prisma.lab.findMany({
       orderBy: { deadline: "asc" },

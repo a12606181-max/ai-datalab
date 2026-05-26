@@ -78,12 +78,12 @@ export function MentorChat({
   const [isSending, startTransition] = useTransition();
   const [draft, setDraft] = useState("");
   const [messageError, setMessageError] = useState<string | undefined>();
-  const [displayedMessages, setDisplayedMessages] = useState<MentorChatMessage[]>(messages);
+  const [pendingMessages, setPendingMessages] = useState<MentorChatMessage[]>([]);
   const messagesRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setDisplayedMessages(messages);
-  }, [messages]);
+  const displayedMessages = useMemo<MentorChatMessage[]>(
+    () => [...messages, ...pendingMessages],
+    [messages, pendingMessages],
+  );
 
   useEffect(() => {
     scrollToBottom(messagesRef.current);
@@ -163,7 +163,7 @@ export function MentorChat({
       },
     ];
 
-    setDisplayedMessages((prev) => [...prev, ...optimisticMessages]);
+    setPendingMessages((prev) => [...prev, ...optimisticMessages]);
     setDraft("");
     scrollToBottom(messagesRef.current);
 
@@ -174,7 +174,7 @@ export function MentorChat({
       const result = await sendMentorMessageAction(initialActionState, formData);
 
       if (!result.success) {
-        setDisplayedMessages((prev) =>
+        setPendingMessages((prev) =>
           prev.filter((item) => item.id !== `${requestId}-user` && item.id !== `${requestId}-ai`),
         );
         setDraft(trimmed);
@@ -186,6 +186,9 @@ export function MentorChat({
         return;
       }
 
+      setPendingMessages((prev) =>
+        prev.filter((item) => item.id !== `${requestId}-user` && item.id !== `${requestId}-ai`),
+      );
       router.refresh();
     });
   }

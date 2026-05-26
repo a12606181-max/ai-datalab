@@ -749,4 +749,6 @@ export async function generateMentorAnswer(userId: string, message: string) {
   });
 }
 
-export default { generateMentorAnswer };
+const mentorAi = { generateMentorAnswer };
+
+export default mentorAi;

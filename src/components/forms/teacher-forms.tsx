@@ -304,25 +304,23 @@ export function TeacherLessonForm({
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id ?? "");
   const [quizzes, setQuizzes] = useState<LessonQuizDraft[]>([createQuizDraft()]);
   useActionToast(state);
-
-  useEffect(() => {
-    if (!courses.length) {
-      setSelectedCourseId("");
-      return;
-    }
-
-    if (!courses.some((course) => course.id === selectedCourseId)) {
-      setSelectedCourseId(courses[0].id);
-    }
-  }, [courses, selectedCourseId]);
+  const effectiveCourseId =
+    courses.some((course) => course.id === selectedCourseId) ? selectedCourseId : (courses[0]?.id ?? "");
 
   const selectedCourse = useMemo(
-    () => courses.find((course) => course.id === selectedCourseId) ?? courses[0],
-    [courses, selectedCourseId],
+    () => courses.find((course) => course.id === effectiveCourseId) ?? courses[0],
+    [courses, effectiveCourseId],
   );
   const suggestedOrder = (selectedCourse?.lessonsCount ?? 0) + 1;
   const serializedQuizzes = JSON.stringify(
-    quizzes.map(({ id, ...quiz }) => quiz),
+    quizzes.map((quiz) => ({
+      question: quiz.question,
+      optionA: quiz.optionA,
+      optionB: quiz.optionB,
+      optionC: quiz.optionC,
+      correctAnswer: quiz.correctAnswer,
+      explanation: quiz.explanation,
+    })),
   );
 
   const updateQuiz = (id: string, field: keyof Omit<LessonQuizDraft, "id">, value: string) => {
@@ -363,7 +361,7 @@ export function TeacherLessonForm({
           <FieldHeading label="Курс" />
           <select
             name="courseId"
-            value={selectedCourseId}
+            value={effectiveCourseId}
             onChange={(event) => setSelectedCourseId(event.target.value)}
             className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-fuchsia-400/35"
           >

@@ -60,19 +60,19 @@ export function LessonQuizForm({
   locale?: AppLocale;
 }) {
   const [state, action] = useActionState(completeLessonAction, initialActionState);
-  const [showResultModal, setShowResultModal] = useState(false);
+  const [dismissedResultKey, setDismissedResultKey] = useState<string | null>(null);
   const { pushToast } = useToast();
   const result = (state.data as LessonCompletionResult | undefined) ?? undefined;
+  const resultKey =
+    result?.scorePercent !== undefined
+      ? `${lessonId}-${result.scorePercent}-${result.correctCount}-${result.totalQuestions}`
+      : null;
+  const showResultModal = Boolean(state.success && resultKey && dismissedResultKey !== resultKey);
 
   useEffect(() => {
     if (!state.message) return;
     pushToast(state.message, state.success ? "success" : "error");
   }, [state, pushToast]);
-
-  useEffect(() => {
-    if (!state.success) return;
-    setShowResultModal(true);
-  }, [state.success]);
 
   const resultMap = useMemo(
     () => new Map((result?.results ?? []).map((item) => [item.quizId, item])),
@@ -217,7 +217,7 @@ export function LessonQuizForm({
           <div className="relative w-full max-w-2xl rounded-[32px] border border-white/10 bg-[#120f1d] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:p-8">
             <button
               type="button"
-              onClick={() => setShowResultModal(false)}
+              onClick={() => setDismissedResultKey(resultKey)}
               className="absolute top-4 right-4 rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
               aria-label={text.close}
             >
@@ -263,7 +263,7 @@ export function LessonQuizForm({
               </Link>
               <button
                 type="button"
-                onClick={() => setShowResultModal(false)}
+                onClick={() => setDismissedResultKey(resultKey)}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-transparent px-5 py-3 text-center text-sm font-medium text-white/65 transition hover:bg-white/5 hover:text-white"
               >
                 <RotateCcw className="h-4 w-4 shrink-0" />

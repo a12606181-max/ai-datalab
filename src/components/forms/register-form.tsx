@@ -37,11 +37,6 @@ export function RegisterForm() {
     window.location.replace(redirectTo);
   }, [state.data, state.success]);
 
-  useEffect(() => {
-    if (avatarOptions.some((option) => option.key === avatarKey)) return;
-    setAvatarKey(getDefaultAvatarKey(gender));
-  }, [avatarKey, avatarOptions, gender]);
-
   return (
     <form action={action} className="space-y-5">
       <input type="hidden" name="gender" value={gender} />
@@ -104,7 +99,10 @@ export function RegisterForm() {
         <div className="grid gap-3 sm:grid-cols-2">
           <button
             type="button"
-            onClick={() => setGender("MALE")}
+            onClick={() => {
+              setGender("MALE");
+              setAvatarKey(getDefaultAvatarKey("MALE"));
+            }}
             className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm transition ${
               gender === "MALE"
                 ? "border-fuchsia-400/60 bg-fuchsia-500/15 text-white"
@@ -116,7 +114,10 @@ export function RegisterForm() {
           </button>
           <button
             type="button"
-            onClick={() => setGender("FEMALE")}
+            onClick={() => {
+              setGender("FEMALE");
+              setAvatarKey(getDefaultAvatarKey("FEMALE"));
+            }}
             className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm transition ${
               gender === "FEMALE"
                 ? "border-fuchsia-400/60 bg-fuchsia-500/15 text-white"
